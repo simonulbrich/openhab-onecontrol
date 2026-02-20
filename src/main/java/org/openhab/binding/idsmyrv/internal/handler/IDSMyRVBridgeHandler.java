@@ -13,6 +13,7 @@ import org.openhab.binding.idsmyrv.internal.gateway.CANConnection;
 import org.openhab.binding.idsmyrv.internal.gateway.GatewayClient;
 import org.openhab.binding.idsmyrv.internal.gateway.SocketCANClient;
 import org.openhab.binding.idsmyrv.internal.idscan.IDSMessage;
+import org.openhab.binding.idsmyrv.internal.idscan.InMotionLockoutLevel;
 import org.openhab.binding.idsmyrv.internal.idscan.MessageType;
 import org.openhab.core.thing.Bridge;
 import org.openhab.core.thing.ChannelUID;
@@ -39,6 +40,7 @@ public class IDSMyRVBridgeHandler extends BaseBridgeHandler {
     private @Nullable BridgeConfiguration config;
     private @Nullable ScheduledFuture<?> reconnectTask;
     private @Nullable IDSMyRVDeviceDiscoveryService deviceDiscoveryService;
+    private final InMotionLockoutState lockoutState = new InMotionLockoutState();
 
     public IDSMyRVBridgeHandler(Bridge bridge) {
         super(bridge);
@@ -254,6 +256,18 @@ public class IDSMyRVBridgeHandler extends BaseBridgeHandler {
                 discovery.processMessage(message);
             }
 
+            // Process NETWORK messages for in-motion lockout
+            // NETWORK messages (type 0) contain the network status byte with lockout level in bits 3-4
+            if (idsMessage.getMessageType() == MessageType.NETWORK && idsMessage.getData().length >= 1) {
+                InMotionLockoutLevel level = InMotionLockoutLevel.fromNetworkStatus(idsMessage.getData()[0]);
+                lockoutState.updateLevel(level);
+                
+                if (level != InMotionLockoutLevel.NO_LOCKOUT) {
+                    logger.debug("In-motion lockout: {} from device {}", level, 
+                            idsMessage.getSourceAddress().getValue());
+                }
+            }
+
             // Smart logging: only show messages that matter
             BridgeConfiguration cfg = config;
             MessageType msgType = idsMessage.getMessageType();
@@ -367,6 +381,56 @@ public class IDSMyRVBridgeHandler extends BaseBridgeHandler {
         }
 
         connection.sendMessage(message);
+    }
+
+    /**
+     * Get the current in-motion lockout state.
+     *
+     * @return The lockout state tracker
+     */
+    public InMotionLockoutState getLockoutState() {
+        return lockoutState;
+    }
+
+    /**
+     * Send ARM lockout command to prepare for clearing lockout.
+     * This must be followed by a CLEAR command (0xAA) within 5 seconds to actually clear.
+     * 
+     * Note: This implementation only sends ARM. The CLEAR command should be sent
+     * from a dedicated safety console after verification.
+     */
+    public void sendArmLockoutCommand() {
+        BridgeConfiguration cfg = config;
+        if (cfg == null) {
+            logger.warn("Cannot send ARM command: bridge not configured");
+            return;
+        }
+
+        CANConnection conn = canConnection;
+        if (conn == null || !conn.isConnected()) {
+            logger.warn("Cannot send ARM command: not connected");
+            return;
+        }
+
+        // Build CAN message: COMMAND (MessageType 130 / 0x82) to BROADCAST with ARM code 0x55
+        Address sourceAddr = new Address(cfg.sourceAddress);
+        
+        try {
+            // Use IDSMessage to create the command properly
+            IDSMessage idsMessage = IDSMessage.pointToPoint(
+                MessageType.COMMAND,  // Type 130 (0x82)
+                sourceAddr,
+                Address.BROADCAST,
+                0x55,  // Command data = ARM (0x55)
+                new byte[0]  // No payload
+            );
+            
+            CANMessage armMessage = idsMessage.encode();
+            conn.sendMessage(armMessage);
+            logger.info("✓ Sent ARM lockout command (devices armed for 5 seconds)");
+        } catch (Exception e) {
+            logger.error("Failed to send ARM lockout command: {}", e.getMessage(), e);
+        }
     }
 
     /**

@@ -137,19 +137,22 @@ public abstract class BaseIDSMyRVDeviceHandler extends BaseThingHandler implemen
             }
 
             if (!bridgeHandler.isConnected()) {
+                logger.warn("❌ Gateway not connected, cannot open session");
                 throw new Exception("Gateway not connected");
             }
 
-            // Always close any existing session first (handles case where another client has it open)
-            try {
-                sm.closeSession();
-                Thread.sleep(300); // Give device time to process close request
-            } catch (Exception e) {
-                logger.debug("Error closing existing session (may not exist): {}", e.getMessage());
-            }
+            logger.info("✅ Gateway connected, proceeding with session open");
+
+            // IMPORTANT: Don't call closeSession() here - the session isn't open yet!
+            // The SessionManager.closeSession() checks isOpen and returns immediately if false.
+            // This means no close message is sent, which is correct for opening a new session.
+            // If another client has the session open, the device will reject our seed request
+            // and we'll handle that in the response.
 
             // Request seed to start session
+            logger.info("📤 Requesting seed to start session...");
             sm.requestSeed();
+            logger.info("✅ Seed request sent");
 
             // Wait for session to open (with timeout)
             int attempts = 0;

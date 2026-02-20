@@ -582,9 +582,16 @@ public class RGBLightHandler extends BaseIDSMyRVDeviceHandler {
             if (message.getSourceAddress().getValue() == cfg.address) {
                 IDSMyRVBridgeHandler bridgeHandler = getBridgeHandler();
                 if (bridgeHandler != null && message.getTargetAddress().equals(bridgeHandler.getSourceAddress())) {
-                    logger.debug("🔄 Forwarding RESPONSE to SessionManager: from device {}",
-                            message.getSourceAddress().getValue());
+                    logger.info("🔄 Forwarding RESPONSE to SessionManager: from device {}, msgData=0x{}, dataLen={}",
+                            message.getSourceAddress().getValue(),
+                            String.format("%02X", message.getMessageData()),
+                            message.getData().length);
                     sm.processResponse(message);
+                } else {
+                    logger.info("ℹ️ RESPONSE from device {} but target mismatch: msg.target={}, bridge.source={}",
+                            message.getSourceAddress().getValue(),
+                            message.getTargetAddress().getValue(),
+                            bridgeHandler != null ? bridgeHandler.getSourceAddress().getValue() : "null");
                 }
             }
         }

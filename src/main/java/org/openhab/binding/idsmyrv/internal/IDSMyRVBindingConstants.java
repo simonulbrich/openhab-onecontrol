@@ -36,6 +36,10 @@ public class IDSMyRVBindingConstants {
     // Thing Configuration Properties
     public static final String CONFIG_DEVICE_ADDRESS = "address";
 
+    // Common Channel IDs (shared across device types)
+    public static final String CHANNEL_LOCKOUT_STATUS = "lockout_status";
+    public static final String CHANNEL_LOCKOUT_LEVEL = "lockout_level";
+
     // Channel IDs for Light
     public static final String CHANNEL_SWITCH = "switch";
     public static final String CHANNEL_BRIGHTNESS = "brightness";

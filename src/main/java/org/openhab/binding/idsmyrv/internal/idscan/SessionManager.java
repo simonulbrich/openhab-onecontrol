@@ -148,19 +148,37 @@ public class SessionManager {
      * @throws Exception if sending fails
      */
     public void requestSeed() throws Exception {
-        logger.debug("Requesting seed from device {}...", targetAddress.getValue());
+        logger.debug("Requesting seed from device {}", targetAddress.getValue());
 
         // Build REQUEST message with SESSION_REQUEST_SEED (66)
         // Data: [SessionID: 2 bytes BE]
         ByteBuffer buffer = ByteBuffer.allocate(2);
         buffer.order(ByteOrder.BIG_ENDIAN);
         buffer.putShort((short) SESSION_ID_REMOTE_CONTROL);
+        
+        byte[] data = buffer.array();
 
         IDSMessage msg = IDSMessage.pointToPoint(MessageType.REQUEST, sourceAddress, targetAddress,
-                REQUEST_SESSION_REQUEST_SEED, buffer.array());
+                REQUEST_SESSION_REQUEST_SEED, data);
 
         CANMessage canMsg = msg.encode();
-        messageSender.sendMessage(canMsg);
+        
+        try {
+            messageSender.sendMessage(canMsg);
+            logger.debug("Seed request sent, waiting for device response");
+        } catch (Exception e) {
+            logger.error("Failed to send seed request: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+    
+    private String formatHex(byte[] data) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < data.length; i++) {
+            if (i > 0) sb.append(" ");
+            sb.append(String.format("%02X", data[i] & 0xFF));
+        }
+        return sb.toString();
     }
 
     private String getErrorName(int errorCode) {
@@ -297,6 +315,9 @@ public class SessionManager {
         if (msg.getMessageType() != MessageType.RESPONSE) {
             return;
         }
+        
+        logger.debug("Response from device {} to us (messageData=0x{})", msg.getSourceAddress().getValue(),
+                String.format("%02X", msg.getMessageData()));
 
         // Check if this response is addressed to us
         if (!msg.getTargetAddress().equals(sourceAddress)) {
@@ -304,7 +325,7 @@ public class SessionManager {
                     msg.getTargetAddress().getValue(), sourceAddress.getValue());
             return;
         }
-
+        
         // NOTE: Unlike C# code, Go code does NOT check if response is from our target device.
         // This is correct - responses may come from a different device (e.g., a gateway/controller).
         // We only check that it's addressed to us and has the right messageData.
@@ -312,17 +333,13 @@ public class SessionManager {
         byte[] data = msg.getData();
         int messageData = msg.getMessageData();
 
-        logger.debug("Received RESPONSE: messageData=0x{}, dataLength={}, from device {} to device {}",
-                String.format("%02X", messageData), data.length, msg.getSourceAddress().getValue(),
-                msg.getTargetAddress().getValue());
-
         try {
             switch (messageData) {
                 case REQUEST_SESSION_REQUEST_SEED:
                     // Response to seed request
                     // Data: [SessionID: 2 bytes][Seed: 4 bytes]
                     if (data.length < 6) {
-                        logger.warn("Invalid seed response length: {}", data.length);
+                        logger.warn("Invalid seed response length: {} (expected 6+)", data.length);
                         return;
                     }
 
@@ -331,11 +348,11 @@ public class SessionManager {
                     int sessionID = seedBuffer.getShort() & 0xFFFF;
                     long seed = seedBuffer.getInt() & 0xFFFFFFFFL;
 
-                    logger.debug("Received seed: 0x{}, sessionID={}", Long.toHexString(seed).toUpperCase(), sessionID);
+                    logger.debug("Received seed: 0x{}, sessionID={}", String.format("%08X", seed), sessionID);
 
                     // Encrypt and send key
                     long key = encryptSeed(seed);
-                    logger.debug("Encrypted key: 0x{}", Long.toHexString(key).toUpperCase());
+                    logger.debug("Encrypted key: 0x{}", String.format("%08X", key));
 
                     transmitKey(key);
                     break;
@@ -415,7 +432,7 @@ public class SessionManager {
 
                 default:
                     // Not a session-related response
-                    logger.debug("Non-session response: messageData=0x{:02X}", String.format("%02X", messageData));
+                    logger.debug("Non-session response: messageData=0x{}", String.format("%02X", messageData));
                     break;
             }
         } catch (Exception e) {

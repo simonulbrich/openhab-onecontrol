@@ -13,8 +13,11 @@ import org.openhab.binding.idsmyrv.internal.config.DeviceConfiguration;
 import org.openhab.binding.idsmyrv.internal.idscan.CommandBuilder;
 import org.openhab.binding.idsmyrv.internal.idscan.DeviceType;
 import org.openhab.binding.idsmyrv.internal.idscan.IDSMessage;
+import org.openhab.binding.idsmyrv.internal.idscan.InMotionLockoutLevel;
 import org.openhab.binding.idsmyrv.internal.idscan.MessageType;
 import org.openhab.binding.idsmyrv.internal.idscan.SessionManager;
+import org.openhab.core.library.types.DecimalType;
+import org.openhab.core.library.types.StringType;
 import org.openhab.core.library.types.UpDownType;
 import org.openhab.core.library.types.StopMoveType;
 import org.openhab.core.thing.Bridge;
@@ -127,6 +130,18 @@ public class MomentaryHBridgeHandler extends BaseIDSMyRVDeviceHandler {
             return;
         }
 
+        // Check in-motion lockout status before allowing hazardous operations
+        // H-Bridge devices (slides, jacks, awnings) are ALWAYS hazardous while vehicle is moving
+        if (!isStopCommand(command)) {
+            InMotionLockoutLevel lockoutLevel = getLockoutLevel();
+            if (lockoutLevel != null && lockoutLevel.blocksHazardousOperations()) {
+                logger.warn("⚠️ Command BLOCKED by in-motion lockout (level {}): {}. Vehicle must be stationary for safety!", 
+                        lockoutLevel, command);
+                updateLockoutStatus(lockoutLevel, true);
+                return;
+            }
+        }
+
         String channelId = channelUID.getId();
 
         try {
@@ -212,6 +227,44 @@ public class MomentaryHBridgeHandler extends BaseIDSMyRVDeviceHandler {
             scheduleAutoStop();
         } else {
             logger.warn("Invalid direction command: {}", direction);
+        }
+    }
+
+    /**
+     * Check if a command is a STOP command (always allowed even during lockout).
+     */
+    private boolean isStopCommand(Command command) {
+        return command instanceof StopMoveType && command == StopMoveType.STOP;
+    }
+
+    /**
+     * Get the current lockout level from the bridge.
+     */
+    private @Nullable InMotionLockoutLevel getLockoutLevel() {
+        try {
+            IDSMyRVBridgeHandler bridgeHandler = getBridgeHandler();
+            if (bridgeHandler != null) {
+                return bridgeHandler.getLockoutState().getCurrentLevel();
+            }
+        } catch (Exception e) {
+            logger.debug("Could not get lockout level: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Update the lockout status channels.
+     */
+    private void updateLockoutStatus(InMotionLockoutLevel level, boolean isBlocked) {
+        try {
+            // Update lockout level channel
+            updateState(CHANNEL_LOCKOUT_LEVEL, new DecimalType(level.getValue()));
+            
+            // Update lockout status channel (string description)
+            updateState(CHANNEL_LOCKOUT_STATUS, new StringType(
+                isBlocked ? "LOCKED - " + level.getDisplayName() : level.getDisplayName()));
+        } catch (Exception e) {
+            logger.debug("Could not update lockout status: {}", e.getMessage());
         }
     }
 

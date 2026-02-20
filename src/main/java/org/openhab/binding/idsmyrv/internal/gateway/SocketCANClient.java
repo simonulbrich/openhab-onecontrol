@@ -2,6 +2,7 @@ package org.openhab.binding.idsmyrv.internal.gateway;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -91,7 +92,22 @@ public class SocketCANClient implements CANConnection {
         try {
             // Open the SocketCAN interface
             NetworkDevice device = NetworkDevice.lookup(interfaceName);
+            logger.info("📡 Opening RawCanChannel for device: {}", device.getName());
+            
             RawCanChannel newChannel = CanChannels.newRawChannel(device);
+            logger.info("📡 RawCanChannel created, now binding...");
+            
+            // CRITICAL: Bind the channel to enable TX/RX
+            newChannel.bind(device);
+            logger.info("✅ Channel bound to device: {}", device.getName());
+            
+            // Configure channel for blocking reads
+            newChannel.configureBlocking(true);
+            logger.info("✅ Channel configured for blocking reads");
+            
+            // DON'T set any filter - by default it should receive all frames
+            // Setting an empty filter array blocks everything!
+            logger.info("SocketCAN channel opened, blocking mode enabled, using default filter (accept all)");
 
             this.channel = newChannel;
             this.running = true;
@@ -127,8 +143,16 @@ public class SocketCANClient implements CANConnection {
 
         readerThread = new Thread(() -> {
             ByteBuffer readBuffer = ByteBuffer.allocateDirect(16); // Standard CAN frame size
+            readBuffer.order(ByteOrder.nativeOrder()); // Set to native byte order (LITTLE_ENDIAN on x86)
+            
+            logger.info("SocketCAN reader thread started for interface {}", interfaceName);
+            int loopCount = 0;
 
             while (!shouldStop) {
+                loopCount++;
+                if (loopCount % 100 == 0) {
+                    logger.debug("Reader thread loop iteration {}, connected={}", loopCount, connected);
+                }
                 // Check if connected, if not try to reconnect
                 if (!connected || channel == null) {
                     if (!shouldStop) {
@@ -156,28 +180,38 @@ public class SocketCANClient implements CANConnection {
                 try {
                     RawCanChannel ch = this.channel;
                     if (ch == null) {
+                        logger.debug("Channel is null in reader loop, skipping read");
+                        Thread.sleep(100); // Avoid busy loop
                         continue;
                     }
 
-                    // Read CAN frame
-                    readBuffer.clear();
-                    ch.read(readBuffer);
-                    readBuffer.flip();
-
-                    if (readBuffer.remaining() > 0) {
-                        CanFrame frame = CanFrame.create(readBuffer);
-
-                        // Convert JavaCAN frame to our CANMessage
-                        CANMessage message = convertToCANMessage(frame);
-
-                        if (verboseLogging) {
-                            logger.debug("RX CAN: {}", message);
-                        }
-
-                        messageHandler.handleMessage(message);
+                    // Read CAN frame - this blocks until a frame is received and returns the frame directly!
+                    CanFrame frame = ch.read();
+                    
+                    if (frame == null) {
+                        logger.warn("Received null frame from ch.read(), skipping");
+                        continue;
                     }
+
+                    // Convert JavaCAN frame to our CANMessage
+                    CANMessage message = convertToCANMessage(frame);
+
+                    // Log received message only in verbose mode
+                    if (verboseLogging) {
+                        StringBuilder hex = new StringBuilder();
+                        for (byte b : message.getData()) {
+                            hex.append(String.format("%02X ", b));
+                        }
+                        logger.debug("RX CAN: ID=0x{} len={} data=[{}]", 
+                                String.format("%X", message.getId().getRaw()),
+                                message.getData().length,
+                                hex.toString().trim());
+                    }
+
+                    messageHandler.handleMessage(message);
+
                 } catch (IOException e) {
-                    logger.warn("❌ SocketCAN read error: {} - disconnecting", e.getMessage());
+                    logger.warn("❌ SocketCAN I/O error: {}", e.getMessage(), e);
                     synchronized (this) {
                         connected = false;
                         running = false;
@@ -186,7 +220,8 @@ public class SocketCANClient implements CANConnection {
                     // Don't break - loop will try to reconnect
                     continue;
                 } catch (Exception e) {
-                    logger.warn("Unexpected error in reader: {}", e.getMessage());
+                    logger.warn("❌ Unexpected exception in reader loop {}: {}", loopCount, e.getMessage(), e);
+                    // Continue reading despite error
                 }
             }
 
@@ -224,11 +259,27 @@ public class SocketCANClient implements CANConnection {
      * Convert our internal CANMessage to a JavaCAN CanFrame.
      */
     private CanFrame convertToCanFrame(CANMessage message) {
-        int canId = message.getId().getRaw();
+        // JavaCAN has separate methods for standard and extended frames
+        int rawId = message.getId().getRaw(); // 29-bit ID for extended, 11-bit for standard
         byte[] data = message.getData();
         boolean isExtended = message.getId().isExtended();
-
-        return CanFrame.create(canId, isExtended ? CanFrame.FD_NO_FLAGS : 0, data);
+        
+        try {
+            CanFrame frame;
+            if (isExtended) {
+                // Use createExtended() for 29-bit extended IDs
+                frame = CanFrame.createExtended(rawId, (byte)0, data);
+            } else {
+                // Use create() for 11-bit standard IDs
+                frame = CanFrame.create(rawId, (byte)0, data);
+            }
+            
+            return frame;
+        } catch (Throwable e) {
+            logger.error("Failed to create CanFrame for ID 0x{}: {}", 
+                    String.format("%08X", rawId), e.getMessage(), e);
+            throw new RuntimeException("Failed to create CanFrame", e);
+        }
     }
 
     /**
@@ -246,18 +297,15 @@ public class SocketCANClient implements CANConnection {
 
         CanFrame frame = convertToCanFrame(message);
 
-        if (verboseLogging) {
-            logger.debug("Sending to CAN bus: CAN ID=0x{}, {} data bytes", String.format("%08X", message.getId().getFullValue()),
-                    message.getData().length);
-        }
+        logger.info("📤 TX CAN: Sending CAN ID=0x{}, {} data bytes", 
+                String.format("%08X", message.getId().getFullValue()),
+                message.getData().length);
 
         try {
             synchronized (this) {
+                logger.info("📤 TX CAN: About to call ch.write() on channel={}", ch != null ? "valid" : "null");
                 ch.write(frame);
-            }
-
-            if (verboseLogging) {
-                logger.debug("Sent: {}", message);
+                logger.info("✅ TX CAN: ch.write() completed without exception");
             }
         } catch (IOException e) {
             // Write failed - connection is broken
@@ -292,6 +340,9 @@ public class SocketCANClient implements CANConnection {
         try {
             NetworkDevice device = NetworkDevice.lookup(interfaceName);
             RawCanChannel newChannel = CanChannels.newRawChannel(device);
+            
+            // CRITICAL: Bind the channel to enable TX/RX
+            newChannel.bind(device);
 
             this.channel = newChannel;
             this.running = true;
