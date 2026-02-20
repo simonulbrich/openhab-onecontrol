@@ -1,0 +1,480 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<thing:thing-descriptions bindingId="idsmyrv" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:thing="https://openhab.org/schemas/thing-description/v1.0.0"
+	xsi:schemaLocation="https://openhab.org/schemas/thing-description/v1.0.0 https://openhab.org/schemas/thing-description-1.0.0.xsd">
+
+	<!-- IDS MyRV Gateway Bridge -->
+	<bridge-type id="gateway">
+		<label>IDS MyRV Gateway</label>
+		<description>CAN Gateway Bridge for IDS MyRV control system</description>
+
+		<config-description>
+			<parameter name="connectionType" type="text" required="true">
+				<label>Connection Type</label>
+				<description>Type of CAN bus connection: "tcp" for TCP gateway, "socketcan" for direct CAN adapter</description>
+				<default>tcp</default>
+				<options>
+					<option value="tcp">TCP Gateway</option>
+					<option value="socketcan">Direct SocketCAN</option>
+				</options>
+			</parameter>
+
+			<parameter name="ipAddress" type="text" required="false">
+				<label>IP Address</label>
+				<description>IP address of the CAN gateway (required for TCP mode, ignored for SocketCAN mode)</description>
+			</parameter>
+
+			<parameter name="port" type="integer" required="false">
+				<label>Port</label>
+				<description>TCP port of the CAN gateway (used for TCP mode, ignored for SocketCAN mode)</description>
+				<default>6969</default>
+			</parameter>
+
+			<parameter name="canInterface" type="text" required="false">
+				<label>CAN Interface</label>
+				<description>SocketCAN interface name (required for SocketCAN mode, e.g., "can0", "vcan0", ignored for TCP mode)</description>
+				<default>can0</default>
+			</parameter>
+
+			<parameter name="sourceAddress" type="integer" required="true">
+				<label>Source Address</label>
+				<description>Source address for this controller on the CAN bus (0-9 typical)</description>
+				<default>1</default>
+				<advanced>true</advanced>
+			</parameter>
+
+			<parameter name="verbose" type="boolean" required="false">
+				<label>Verbose Logging</label>
+				<description>Enable verbose logging for debugging</description>
+				<default>false</default>
+				<advanced>true</advanced>
+			</parameter>
+		</config-description>
+	</bridge-type>
+
+	<!-- Dimmable Light Thing -->
+	<thing-type id="light">
+		<supported-bridge-type-refs>
+			<bridge-type-ref id="gateway"/>
+		</supported-bridge-type-refs>
+
+		<label>Dimmable Light</label>
+		<description>A dimmable light on the IDS MyRV CAN bus</description>
+
+		<channels>
+			<channel id="switch" typeId="switch"/>
+			<channel id="brightness" typeId="brightness"/>
+			<channel id="mode" typeId="lightmode"/>
+			<channel id="sleep" typeId="sleeptime"/>
+			<channel id="time1" typeId="cycletime"/>
+			<channel id="time2" typeId="cycletime"/>
+		</channels>
+
+		<properties>
+			<property name="deviceType"/>
+			<property name="functionClass"/>
+			<property name="deviceName"/>
+		</properties>
+
+		<config-description>
+			<parameter name="address" type="integer" required="true">
+				<label>Device Address</label>
+				<description>CAN bus address of the light device (1-255)</description>
+			</parameter>
+		</config-description>
+	</thing-type>
+
+	<!-- RGB Light Thing -->
+	<thing-type id="rgblight">
+		<supported-bridge-type-refs>
+			<bridge-type-ref id="gateway"/>
+		</supported-bridge-type-refs>
+
+		<label>RGB Light</label>
+		<description>An RGB light on the IDS MyRV CAN bus</description>
+
+		<channels>
+			<channel id="switch" typeId="switch"/>
+			<channel id="color" typeId="color"/>
+			<channel id="mode" typeId="rgbmode"/>
+			<channel id="speed" typeId="rgbspeed"/>
+			<channel id="sleep" typeId="rgbsleep"/>
+		</channels>
+
+		<properties>
+			<property name="deviceType"/>
+			<property name="functionClass"/>
+			<property name="deviceName"/>
+		</properties>
+
+		<config-description>
+			<parameter name="address" type="integer" required="true">
+				<label>Device Address</label>
+				<description>CAN bus address of the RGB light device (1-255)</description>
+			</parameter>
+		</config-description>
+	</thing-type>
+
+	<!-- Tank Sensor Thing -->
+	<thing-type id="tanksensor">
+		<supported-bridge-type-refs>
+			<bridge-type-ref id="gateway"/>
+		</supported-bridge-type-refs>
+
+		<label>Tank Sensor</label>
+		<description>A tank level sensor on the IDS MyRV CAN bus</description>
+
+		<channels>
+			<channel id="level" typeId="tanklevel"/>
+		</channels>
+
+		<properties>
+			<property name="deviceType"/>
+			<property name="functionClass"/>
+			<property name="deviceName"/>
+		</properties>
+
+		<config-description>
+			<parameter name="address" type="integer" required="true">
+				<label>Device Address</label>
+				<description>CAN bus address of the tank sensor device (1-255)</description>
+			</parameter>
+		</config-description>
+	</thing-type>
+
+	<!-- Latching Relay Thing -->
+	<thing-type id="latchingrelay">
+		<supported-bridge-type-refs>
+			<bridge-type-ref id="gateway"/>
+		</supported-bridge-type-refs>
+
+		<label>Latching Relay</label>
+		<description>A latching relay on the IDS MyRV CAN bus</description>
+
+		<channels>
+			<channel id="switch" typeId="switch"/>
+			<channel id="fault" typeId="fault"/>
+			<channel id="output_disable" typeId="output_disable"/>
+			<channel id="position" typeId="position"/>
+			<channel id="current" typeId="current"/>
+			<channel id="dtc_reason" typeId="dtc_reason"/>
+		</channels>
+
+		<properties>
+			<property name="deviceType"/>
+			<property name="functionClass"/>
+			<property name="deviceName"/>
+		</properties>
+
+		<config-description>
+			<parameter name="address" type="integer" required="true">
+				<label>Device Address</label>
+				<description>CAN bus address of the relay device (1-255)</description>
+			</parameter>
+		</config-description>
+	</thing-type>
+
+	<!-- Momentary H-Bridge Thing -->
+	<thing-type id="momentaryhbridge">
+		<supported-bridge-type-refs>
+			<bridge-type-ref id="gateway"/>
+		</supported-bridge-type-refs>
+
+		<label>Momentary H-Bridge</label>
+		<description>A momentary H-Bridge motor control device on the IDS MyRV CAN bus</description>
+
+		<channels>
+			<channel id="direction" typeId="rollershutter"/>
+			<channel id="fault" typeId="fault"/>
+			<channel id="output_disable" typeId="output_disable"/>
+			<channel id="position" typeId="position"/>
+			<channel id="current" typeId="current"/>
+			<channel id="dtc_reason" typeId="dtc_reason"/>
+		</channels>
+
+		<properties>
+			<property name="deviceType"/>
+			<property name="functionClass"/>
+			<property name="deviceName"/>
+		</properties>
+
+		<config-description>
+			<parameter name="address" type="integer" required="true">
+				<label>Device Address</label>
+				<description>CAN bus address of the H-Bridge device (1-255)</description>
+			</parameter>
+		</config-description>
+	</thing-type>
+
+	<!-- Channel Types -->
+	<channel-type id="rollershutter">
+		<item-type>Rollershutter</item-type>
+		<label>Direction</label>
+		<description>H-Bridge motor direction control (UP=Forward, DOWN=Reverse, STOP=Stop)</description>
+		<category>Blinds</category>
+		<state readOnly="false"/>
+	</channel-type>
+
+	<channel-type id="switch">
+		<item-type>Switch</item-type>
+		<label>Power</label>
+		<description>Turn the device on or off</description>
+		<category>Light</category>
+	</channel-type>
+
+	<channel-type id="brightness">
+		<item-type>Dimmer</item-type>
+		<label>Brightness</label>
+		<description>Set the brightness of the light (0-100%)</description>
+		<category>DimmableLight</category>
+		<state min="0" max="100" step="1" pattern="%d %%"/>
+	</channel-type>
+
+	<channel-type id="color">
+		<item-type>Color</item-type>
+		<label>Color</label>
+		<description>Set the color of the RGB light</description>
+		<category>ColorLight</category>
+	</channel-type>
+
+	<channel-type id="rgbmode">
+		<item-type>String</item-type>
+		<label>Mode</label>
+		<description>Set the RGB light mode (ON, OFF, BLINK, JUMP3, JUMP7, FADE3, FADE7, RAINBOW)</description>
+		<category>Light</category>
+		<state readOnly="false">
+			<options>
+				<option value="ON">On</option>
+				<option value="OFF">Off</option>
+				<option value="BLINK">Blink</option>
+				<option value="JUMP3">Jump 3</option>
+				<option value="JUMP7">Jump 7</option>
+				<option value="FADE3">Fade 3</option>
+				<option value="FADE7">Fade 7</option>
+				<option value="RAINBOW">Rainbow</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="rgbspeed">
+		<item-type>Number</item-type>
+		<label>Speed</label>
+		<description>Transition speed/interval in milliseconds for blink and transition modes (0-65535)</description>
+		<category>Light</category>
+		<state min="0" max="65535" step="1" pattern="%d ms" readOnly="false"/>
+	</channel-type>
+
+	<channel-type id="rgbsleep">
+		<item-type>Number</item-type>
+		<label>Sleep Time</label>
+		<description>Auto-off duration in seconds (0-255)</description>
+		<category>Light</category>
+		<state min="0" max="255" step="1" pattern="%d s" readOnly="false"/>
+	</channel-type>
+
+	<channel-type id="tanklevel">
+		<item-type>Number</item-type>
+		<label>Tank Level</label>
+		<description>Tank level percentage (0-100%)</description>
+		<category>Temperature</category>
+		<state min="0" max="100" step="1" pattern="%.0f %%"/>
+	</channel-type>
+
+	<channel-type id="lightmode">
+		<item-type>String</item-type>
+		<label>Operating Mode</label>
+		<description>Light operating mode (OFF, DIMMER, BLINK, SWELL)</description>
+		<category>Light</category>
+		<state readOnly="false">
+			<options>
+				<option value="OFF">Off</option>
+				<option value="DIMMER">Dimmer</option>
+				<option value="BLINK">Blink</option>
+				<option value="SWELL">Swell</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="sleeptime">
+		<item-type>Number</item-type>
+		<label>Sleep Time</label>
+		<description>Auto-off duration in seconds (0-255)</description>
+		<category>Light</category>
+		<state min="0" max="255" step="1" pattern="%d s" readOnly="false"/>
+	</channel-type>
+
+	<channel-type id="cycletime">
+		<item-type>Number</item-type>
+		<label>Cycle Time</label>
+		<description>Cycle time in milliseconds for blink/swell modes (0-65535)</description>
+		<category>Light</category>
+		<state min="0" max="65535" step="1" pattern="%d ms" readOnly="false"/>
+	</channel-type>
+
+	<channel-type id="fault">
+		<item-type>Switch</item-type>
+		<label>Fault</label>
+		<description>Relay fault status</description>
+		<category>Status</category>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="output_disable">
+		<item-type>Switch</item-type>
+		<label>Output Disabled</label>
+		<description>Relay output disabled status</description>
+		<category>Status</category>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="position">
+		<item-type>Number</item-type>
+		<label>Position</label>
+		<description>Relay position (0-100%)</description>
+		<category>Status</category>
+		<state min="0" max="100" step="1" pattern="%d %%" readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="current">
+		<item-type>Number</item-type>
+		<label>Current Draw</label>
+		<description>Relay current draw in amps</description>
+		<category>Status</category>
+		<state min="0" max="100" step="0.1" pattern="%.1f A" readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="dtc_reason">
+		<item-type>Number</item-type>
+		<label>DTC Reason</label>
+		<description>Diagnostic trouble code reason for output disabled</description>
+		<category>Status</category>
+		<state min="0" max="65535" step="1" pattern="%d" readOnly="true"/>
+	</channel-type>
+
+	<!-- HVAC Control Thing -->
+	<thing-type id="hvac">
+		<supported-bridge-type-refs>
+			<bridge-type-ref id="gateway"/>
+		</supported-bridge-type-refs>
+
+		<label>HVAC Control</label>
+		<description>HVAC/Climate Zone control device on the IDS MyRV CAN bus</description>
+
+		<channels>
+			<channel id="hvac_mode" typeId="hvac_mode"/>
+			<channel id="heat_source" typeId="heat_source"/>
+			<channel id="fan_mode" typeId="fan_mode"/>
+			<channel id="low_temperature" typeId="temperature_setpoint"/>
+			<channel id="high_temperature" typeId="temperature_setpoint"/>
+			<channel id="inside_temperature" typeId="temperature"/>
+			<channel id="outside_temperature" typeId="temperature"/>
+			<channel id="status" typeId="hvac_status"/>
+		</channels>
+
+		<properties>
+			<property name="deviceType"/>
+			<property name="functionClass"/>
+			<property name="deviceName"/>
+		</properties>
+
+		<config-description>
+			<parameter name="address" type="integer" required="true">
+				<label>Device Address</label>
+				<description>CAN bus address of the HVAC device (1-255)</description>
+			</parameter>
+		</config-description>
+	</thing-type>
+
+	<!-- HVAC Channel Types -->
+	<channel-type id="hvac_mode">
+		<item-type>String</item-type>
+		<label>HVAC Mode</label>
+		<description>HVAC operating mode (OFF, HEAT, COOL, BOTH, RUNSCHEDULE)</description>
+		<category>HVAC</category>
+		<state readOnly="false">
+			<options>
+				<option value="OFF">Off</option>
+				<option value="HEAT">Heating</option>
+				<option value="COOL">Cooling</option>
+				<option value="BOTH">Heat/Cool</option>
+				<option value="RUNSCHEDULE">Run Schedule</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="heat_source">
+		<item-type>String</item-type>
+		<label>Heat Source</label>
+		<description>Preferred heat source (GAS, HEATPUMP, OTHER)</description>
+		<category>HVAC</category>
+		<state readOnly="false">
+			<options>
+				<option value="GAS">Gas</option>
+				<option value="HEATPUMP">Heat Pump</option>
+				<option value="OTHER">Other</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="fan_mode">
+		<item-type>String</item-type>
+		<label>Fan Mode</label>
+		<description>Fan operating mode (AUTO, HIGH, LOW)</description>
+		<category>HVAC</category>
+		<state readOnly="false">
+			<options>
+				<option value="AUTO">Auto</option>
+				<option value="HIGH">High</option>
+				<option value="LOW">Low</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="temperature_setpoint">
+		<item-type>Number</item-type>
+		<label>Temperature Setpoint</label>
+		<description>Temperature setpoint in Fahrenheit (0-255)</description>
+		<category>HVAC</category>
+		<state min="0" max="255" step="1" pattern="%d °F" readOnly="false"/>
+	</channel-type>
+
+	<channel-type id="temperature">
+		<item-type>Number</item-type>
+		<label>Temperature</label>
+		<description>Temperature reading in Fahrenheit</description>
+		<category>Temperature</category>
+		<state min="-40" max="140" step="0.1" pattern="%.1f °F" readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="hvac_status">
+		<item-type>String</item-type>
+		<label>Zone Status</label>
+		<description>Current HVAC zone status</description>
+		<category>HVAC</category>
+		<state readOnly="true">
+			<options>
+				<option value="OFF">Off</option>
+				<option value="IDLE">Idle</option>
+				<option value="COOLING">Cooling</option>
+				<option value="HEAT_PUMP">Heat Pump</option>
+				<option value="ELEC_FURNACE">Electric Furnace</option>
+				<option value="GAS_FURNACE">Gas Furnace</option>
+				<option value="GAS_OVERRIDE">Gas Override</option>
+				<option value="DEAD_TIME">Dead Time</option>
+				<option value="LOAD_SHEDDING">Load Shedding</option>
+				<option value="FAIL_OFF">Fail Off</option>
+				<option value="FAIL_IDLE">Fail Idle</option>
+				<option value="FAIL_COOLING">Fail Cooling</option>
+				<option value="FAIL_HEAT_PUMP">Fail Heat Pump</option>
+				<option value="FAIL_ELEC_FURNACE">Fail Electric Furnace</option>
+				<option value="FAIL_GAS_FURNACE">Fail Gas Furnace</option>
+				<option value="FAIL_GAS_OVERRIDE">Fail Gas Override</option>
+				<option value="FAIL_DEAD_TIME">Fail Dead Time</option>
+				<option value="FAIL_SHEDDING">Fail Shedding</option>
+			</options>
+		</state>
+	</channel-type>
+
+</thing:thing-descriptions>
+
+
