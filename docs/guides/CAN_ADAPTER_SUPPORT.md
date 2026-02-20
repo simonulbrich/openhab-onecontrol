@@ -191,5 +191,5 @@ TCP mode has no additional dependencies beyond Java networking.
 
 ## License
 
-Same as the main binding license.
+Same as the main binding license (GPL-3.0).
 
